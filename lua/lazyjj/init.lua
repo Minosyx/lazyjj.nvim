@@ -43,7 +43,7 @@ local function open_floating_window()
 	-- Get plenary's float window module which handles window creation
 	local plenary = require("plenary.window.float")
 
-	-- Create centered floating window at 90% of screen size with rounded borders
+	-- Create centered floating window
 	local win = plenary.percentage_range_window(M.config.col_range, M.config.row_range, {
 		border = {
 			"╭",
@@ -103,7 +103,7 @@ function M.setup(opts)
 end
 
 function M.open()
-	-- Store current window ID for late    -- Check if lazyjj is available
+	-- Check if lazyjj is available
 	local cmd = "lazyjj"
 	if vim.fn.executable(cmd) ~= 1 then
 		vim.notify(
