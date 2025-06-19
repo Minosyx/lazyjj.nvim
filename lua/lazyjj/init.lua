@@ -2,12 +2,49 @@
 
 local M = {}
 
+---Finds the root of a jujutsu repository by searching upwards from a given path.
+---@param start_path string|nil The path to start searching from.
+---@return string The path to the repository root, or nil if not found.
+local function find_jj_root(start_path)
+	-- Use vim.loop (libuv) for filesystem operations
+	local uv = vim.loop
+
+	-- If no start_path is provided, default to the directory of the current buffer
+	local path = start_path or vim.api.nvim_buf_get_name(0)
+	if not path or path == "" then
+		return vim.fn.getcwd() -- Fallback for empty/unnamed buffers
+	end
+
+	-- Use the directory containing the file
+	path = vim.fn.fnamemodify(path, ":h")
+
+	while path and path ~= "/" and path ~= "" do
+		-- Check if the .jj directory exists in the current path
+		local jj_dir = path .. "/.jj"
+		-- Use uv.fs_stat to check for directory existence without blocking
+		local stat = uv.fs_stat(jj_dir)
+		if stat and stat.type == "directory" then
+			return path -- Found the root
+		end
+
+		-- Move to the parent directory
+		local parent = vim.fn.fnamemodify(path, ":h")
+		if parent == path then -- Reached the top (e.g., '/')
+			break
+		end
+		path = parent
+	end
+
+	-- If no .jj directory was found, return the fallback cwd
+	return vim.fn.getcwd()
+end
+
 local function open_floating_window()
 	-- Get plenary's float window module which handles window creation
 	local plenary = require("plenary.window.float")
 
 	-- Create centered floating window at 90% of screen size with rounded borders
-	local win = plenary.percentage_range_window(0.9, 0.8, {
+	local win = plenary.percentage_range_window(M.config.col_range, M.config.row_range, {
 		border = {
 			"╭",
 			"─",
@@ -47,6 +84,9 @@ function M.setup(opts)
 	M.config = vim.tbl_deep_extend("force", {
 		-- Default configuration options can go here
 		mapping = "<leader>jj", -- Default keymapping
+		-- Default size for plenary
+		col_range = 0.9,
+		row_range = 0.8,
 	}, opts or {})
 
 	-- Create user command
@@ -75,11 +115,16 @@ function M.open()
 
 	local prev_win = vim.api.nvim_get_current_win()
 
+	-- Get jj project dir
+	local cwd = find_jj_root()
+
 	-- Create floating window
 	open_floating_window()
 
 	-- Execute lazyjj in the floating window
-	vim.fn.termopen(cmd, {
+	vim.fn.jobstart(cmd, {
+		term = true,
+		cwd = cwd,
 		-- Return to previous window on exit
 		on_exit = function()
 			if vim.api.nvim_win_is_valid(prev_win) then
